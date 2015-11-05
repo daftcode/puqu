@@ -1,0 +1,6 @@
+*.pyc
+.venv
+.tags
+.coverage
+puqu.egg-info/*
+run_tests.sh
