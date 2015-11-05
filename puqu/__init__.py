@@ -12,9 +12,6 @@ JOBS_TABLE = 'puqu_jobs'
 CHANNEL = 'puqu_jobs'
 
 
-DSN = "dbname=fifo_queue user=postgres password=postgres host=localhost"
-
-
 class status(object):
     NEW = 0
     DELIVERED = 1
