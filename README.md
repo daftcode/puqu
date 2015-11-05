@@ -1,4 +1,4 @@
 PuQu
 ====
 
-## Multi consumer FIFO queue backed by PostgreSQL
+Multi consumer FIFO queue backed by PostgreSQL
