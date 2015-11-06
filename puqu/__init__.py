@@ -173,6 +173,10 @@ class PuQuListener(_PuQuBase):
                 self._connection.commit()
             else:
                 try:
+                    self.logger.debug(
+                        'Execute job {}, data: {}'
+                        .format(job.__name__, job_data)
+                    )
                     job(job_data)
                     self._update_job(job_id, status.PROCESSED)
                     self._connection.commit()
