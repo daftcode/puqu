@@ -51,13 +51,19 @@ class _PuQuBase(object):
 class PuQu(_PuQuBase):
     logger = logging.getLogger('puqu.puqu')
 
-    def queue(self, job_name, data=None):
+    def queue(self, job, data=None):
         if self._connection is None and self._dsn is not None:
             self.connect()
 
         if self._connection is None:
             raise puqu_exc.NotConnectedError(
                 "Not connected. Call 'configure' first")
+
+        if hasattr(job, '__call__'):
+            if not getattr(job, 'puqu_registered', False):
+                raise puqu_exc.JobFunctionNotRegistered(
+                    'This function is not registered as job')
+            job = job.__name__
 
         data = data or {}
         if data is not None:
@@ -66,7 +72,7 @@ class PuQu(_PuQuBase):
         self._cursor.execute(
             ("INSERT INTO {} (name, data) VALUES (%s, %s) RETURNING id"
              .format(JOBS_TABLE)),
-            (job_name, data)
+            (job, data)
         )
         job_id = str(self._cursor.fetchone()[0])
         self._connection.commit()
@@ -85,10 +91,12 @@ class PuQuListener(_PuQuBase):
         self._registered_jobs = {}
         self._catch_job_exc = catch_job_exc
 
-    def configure(self, dsn, select_timeout=5, on_timeout=None):
+    def configure(self, dsn, select_timeout=None, on_timeout=None):
         self._dsn = dsn
-        self._select_timeout = select_timeout
-        self._on_timeout = None
+        if select_timeout is not None:
+            self._select_timeout = select_timeout
+        if on_timeout is not None:
+            self._on_timeout = on_timeout
 
     def poll(self):
         self.connect()
@@ -117,6 +125,7 @@ class PuQuListener(_PuQuBase):
                 "Job naimed '{}' already registered"
                 .format(name)
             )
+        handler.puqu_registered = True
         self._registered_jobs[name] = handler
 
     def job(self, fn):

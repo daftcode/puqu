@@ -1,18 +1,22 @@
-class PuquException(Exception):
+class PuQuException(Exception):
     pass
 
 
-class NotConnectedError(PuquException):
+class NotConnectedError(PuQuException):
     pass
 
 
-class NotConfiguredError(PuquException):
+class NotConfiguredError(PuQuException):
     pass
 
 
-class StopListening(PuquException):
+class StopListening(PuQuException):
     pass
 
 
-class JobNameAlreadyRegistered(PuquException):
+class JobNameAlreadyRegistered(PuQuException):
+    pass
+
+
+class JobFunctionNotRegistered(PuQuException):
     pass

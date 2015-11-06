@@ -1,4 +1,5 @@
 import os
+import time
 import threading
 
 import psycopg2
@@ -81,3 +82,36 @@ def test_puqu():
     for row in rows:
         status = row[-1]
         assert status == puqu.status.PROCESSED
+
+
+def test_fn_in_shared_lib():
+    DSN = os.environ.get('PUQU_DSN')
+    if DSN is None:
+        raise Exception('PUQU_DSN env var is not defined')
+    puqu.setup_db(DSN, drop=True)
+
+    listener = puqu.PuQuListener()
+    queuer = puqu.PuQu(dsn=DSN)
+
+    job_ev = threading.Event()
+    timeout_ev = threading.Event()
+
+    @listener.job
+    def dummy_job(data):
+        job_ev.set()
+
+    assert dummy_job.puqu_registered is True
+
+    listener.configure(
+        DSN,
+        select_timeout=1,
+        on_timeout=DummyOnTimeout(timeout_ev),
+    )
+    listener_thread = threading.Thread(target=listener.poll)
+    listener_thread.start()
+    time.sleep(1)
+
+    queuer.queue(dummy_job)
+    timeout_ev.set()
+    listener_thread.join()
+    assert job_ev.isSet()
