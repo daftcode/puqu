@@ -175,7 +175,7 @@ class PuQuListener(_PuQuBase):
                 try:
                     self.logger.debug(
                         'Execute job {}, data: {}'
-                        .format(job.__name__, job_data)
+                        .format(getattr(job, '__name__', job), job_data)
                     )
                     job(job_data)
                     self._update_job(job_id, status.PROCESSED)
