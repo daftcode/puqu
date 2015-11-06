@@ -85,9 +85,10 @@ class PuQuListener(_PuQuBase):
         self._registered_jobs = {}
         self._catch_job_exc = catch_job_exc
 
-    def configure(self, dsn, select_timeout=5):
+    def configure(self, dsn, select_timeout=5, on_timeout=None):
         self._dsn = dsn
         self._select_timeout = select_timeout
+        self._on_timeout = None
 
     def poll(self):
         self.connect()
