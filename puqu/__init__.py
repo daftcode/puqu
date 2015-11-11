@@ -74,10 +74,12 @@ class PuQu(_PuQuBase):
              .format(JOBS_TABLE)),
             (job, data)
         )
-        job_id = str(self._cursor.fetchone()[0])
+        job_id = self._cursor.fetchone()[0]
         self._connection.commit()
-        self._cursor.execute('NOTIFY {}, %s'.format(self.channel), (job_id,))
+        self._cursor.execute(
+            'NOTIFY {}, %s'.format(self.channel), (str(job_id),))
         self._connection.commit()
+        return job_id
 
 
 class PuQuListener(_PuQuBase):
