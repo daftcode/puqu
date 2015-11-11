@@ -106,12 +106,12 @@ def test_fn_in_shared_lib():
         DSN,
         select_timeout=1,
         on_timeout=DummyOnTimeout(timeout_ev),
+        notify_status_update=True,
     )
     listener_thread = threading.Thread(target=listener.poll)
     listener_thread.start()
-    time.sleep(1)
 
-    queuer.queue(dummy_job)
+    queuer.queue(dummy_job, poll_for_status=puqu.status.PROCESSED)
     timeout_ev.set()
     listener_thread.join()
     assert job_ev.isSet()

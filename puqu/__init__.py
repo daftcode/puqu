@@ -1,7 +1,8 @@
 import json
+import logging
 import sys
 import select
-import logging
+import time
 
 import psycopg2
 
@@ -10,6 +11,7 @@ from puqu import exc as puqu_exc
 
 JOBS_TABLE = 'puqu_jobs'
 CHANNEL = 'puqu_jobs'
+CHANNEL_STATUS_UPDATE = 'puqu_jobs_status_update'
 
 
 class status(object):
@@ -51,7 +53,7 @@ class _PuQuBase(object):
 class PuQu(_PuQuBase):
     logger = logging.getLogger('puqu.puqu')
 
-    def queue(self, job, data=None):
+    def queue(self, job, data=None, poll_for_status=None, poll_timeout=2):
         if self._connection is None and self._dsn is not None:
             self.connect()
 
@@ -76,29 +78,63 @@ class PuQu(_PuQuBase):
         )
         job_id = self._cursor.fetchone()[0]
         self._connection.commit()
+        if poll_for_status is not None:
+            self._cursor.execute('LISTEN {}'.format(CHANNEL_STATUS_UPDATE))
         self._cursor.execute(
             'NOTIFY {}, %s'.format(self.channel), (str(job_id),))
         self._connection.commit()
+        if poll_for_status is not None:
+            try:
+                self._poll_for_status(job_id, poll_for_status, poll_timeout)
+            finally:
+                self._cursor.execute(
+                    'UNLISTEN {}'.format(CHANNEL_STATUS_UPDATE))
+                self._connection.commit()
         return job_id
+
+    def _poll_for_status(self, job_id, status_, timeout):
+        start = time.time()
+        while True:
+            if (
+                select.select([self._connection], [], [], timeout)
+                == ([], [], [])
+            ):
+                if (time.time() - start) >= timeout:
+                    raise puqu_exc.StatusUpdatePollTimeout(
+                        'Poll for job: {}, status: {} timed out (timeout: {})'
+                        .format(job_id, status, timeout)
+                    )
+            else:
+                self._connection.poll()
+                while self._connection.notifies:
+                    notify = self._connection.notifies.pop()
+                    n_job_id, n_status = notify.payload.split(':')
+                    if int(n_job_id) == job_id and int(n_status) == status_:
+                        return
 
 
 class PuQuListener(_PuQuBase):
     logger = logging.getLogger('puqu.listener')
 
     def __init__(self, channel=CHANNEL, dsn=None, select_timeout=5,
-                 on_timeout=None, catch_job_exc=True):
+                 on_timeout=None, catch_job_exc=True,
+                 notify_status_update=False):
         self._select_timeout = select_timeout
         super(PuQuListener, self).__init__(channel, dsn)
         self._on_timeout = on_timeout
         self._registered_jobs = {}
         self._catch_job_exc = catch_job_exc
+        self._notify_status_update = notify_status_update
 
-    def configure(self, dsn, select_timeout=None, on_timeout=None):
+    def configure(self, dsn, select_timeout=None, on_timeout=None,
+                  notify_status_update=None):
         self._dsn = dsn
         if select_timeout is not None:
             self._select_timeout = select_timeout
         if on_timeout is not None:
             self._on_timeout = on_timeout
+        if notify_status_update is not None:
+            self._notify_status_update = notify_status_update
 
     def poll(self):
         self.connect()
@@ -207,6 +243,11 @@ class PuQuListener(_PuQuBase):
             "UPDATE {} set status=%s WHERE id=%s".format(JOBS_TABLE),
             (status_, job_id)
         )
+        if self._notify_status_update:
+            self._cursor.execute(
+                'NOTIFY {}, %s'.format(CHANNEL_STATUS_UPDATE),
+                ('{}:{}'.format(job_id, status_), )
+            )
 
 
 def setup_db(dsn, drop=False):

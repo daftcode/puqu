@@ -20,3 +20,7 @@ class JobNameAlreadyRegistered(PuQuException):
 
 class JobFunctionNotRegistered(PuQuException):
     pass
+
+
+class StatusUpdatePollTimeout(PuQuException):
+    pass
