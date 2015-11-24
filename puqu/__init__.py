@@ -3,6 +3,7 @@ import logging
 import sys
 import select
 import time
+import threading
 
 import psycopg2
 
@@ -23,12 +24,12 @@ class status(object):
 
 
 class _PuQuBase(object):
+    _thread_local = threading.local()
 
     def __init__(self, channel=CHANNEL, dsn=None):
         self.channel = channel
         self._dsn = dsn
         self._connection = None
-        self._cursor = None
 
     def configure(self, dsn):
         self._dsn = dsn
@@ -42,16 +43,27 @@ class _PuQuBase(object):
         if dsn is not None:
             self._dsn = dsn
         self._connection = psycopg2.connect(self._dsn)
-        self._cursor = self._connection.cursor()
 
     def disconnect(self):
         if self._connection is None:
             raise puqu_exc.NotConnectedError('Not connected')
         self._connection.close()
+        delattr(self._thread_local, self._thlocal_cursor)
+
+    @property
+    def _cursor(self):
+        if not getattr(self._thread_local, self._thlocal_cursor, None):
+            setattr(
+                self._thread_local,
+                self._thlocal_cursor,
+                self._connection.cursor(),
+            )
+        return getattr(self._thread_local, self._thlocal_cursor)
 
 
 class PuQu(_PuQuBase):
     logger = logging.getLogger('puqu.puqu')
+    _thlocal_cursor = 'queuer_cursor'
 
     def queue(self, job, data=None, poll_for_status=None, poll_timeout=2):
         if self._connection is None and self._dsn is not None:
@@ -113,8 +125,10 @@ class PuQu(_PuQuBase):
                         return
 
 
+
 class PuQuListener(_PuQuBase):
     logger = logging.getLogger('puqu.listener')
+    _thlocal_cursor = 'listener_cursor'
 
     def __init__(self, channel=CHANNEL, dsn=None, select_timeout=5,
                  on_timeout=None, catch_job_exc=True,
