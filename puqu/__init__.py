@@ -52,7 +52,7 @@ class _PuQuBase(object):
 
     @property
     def _cursor(self):
-        if not getattr(self._thread_local, self._thlocal_cursor, None):
+        if not hasattr(self._thread_local, self._thlocal_cursor):
             setattr(
                 self._thread_local,
                 self._thlocal_cursor,
